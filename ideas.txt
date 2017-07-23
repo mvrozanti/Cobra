@@ -1,0 +1,12 @@
+CobraGame has Players(/by IP)
+each Player controls one Cobra
+each Cobra has attributes
+each Cobra has direction
+each Cobra has a Stack of effects
+
+what can you send:
+
+direction
+isShifted
+rememberHeadPosition
+wtf
