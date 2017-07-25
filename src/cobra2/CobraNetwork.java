@@ -1,28 +1,24 @@
 package cobra2;
 
-import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.ObjectInput;
 import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
-import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.AbstractAction;
-import javax.swing.Action;
-import javax.swing.JFrame;
-import javax.swing.JPanel;
 
 /**
  *
@@ -34,37 +30,31 @@ public class CobraNetwork {
     private static String ip = "127.0.0.1";
     private static int port = 448;
     private static List<Socket> connections = new ArrayList<>();
+    private static HashMap<Socket, DataOutputStream> connectionMap = new HashMap<>();
     private static boolean isServer;
-    private static boolean isConnected;
+    private static boolean isConnected = false;
     private static List<ActionListener> actionListeners = new ArrayList<>();
 
     public static void init() {
         if (!connect()) {
             initializeServer();
-            isConnected = true;
         }
-        isConnected = false;
     }
 
     private static void initializeServer() {
         try {
             System.out.println("Server initialized...");
             socketFromServer = new ServerSocket(port, 8, InetAddress.getByName(ip));
-            isServer = true;
             startAcceptingNewConnections();
+            isConnected = true;
+            isServer = true;
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     public static boolean isConnected() {
-        return !isConnected;
-    }
-
-    public void waitUntilConnected() {
-        while(!isConnected()){
-            continue;
-        }
+        return isConnected;
     }
 
     /**
@@ -76,26 +66,66 @@ public class CobraNetwork {
         actionListeners.add(al);
     }
 
+    public static void main(String[] args) {
+        CobraNetwork.init();
+        addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println(e.getSource());
+            }
+        });
+        while (!CobraNetwork.isConnected) {
+            continue;
+        }
+        while (true) {
+            if (CobraNetwork.isServer) {
+                dispatchObjectToClients("cat");
+            } else {
+                sendObjectToServer("mouse");
+            }
+        }
+    }
+
     public static void sendObjectToServer(Object o) {
         try {
-            ObjectOutputStream oos = new ObjectOutputStream(connections.get(0).getOutputStream());
-            oos.writeObject(o);
-            oos.flush();
+            DataOutputStream dos;
+            if (connectionMap.get(connections.get(0)) == null) {
+                dos = new DataOutputStream(connections.get(0).getOutputStream());
+                connectionMap.put(connections.get(0), dos);
+            } else {
+                dos = connectionMap.get(connections.get(0));
+            }
+//            oos.reset();
+            dos.write(serialize(o));
+            dos.flush();
+        } catch (Exception ex) {
+            Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    private static void dispatchObjectToClient(Object o, Socket s) {
+        DataOutputStream dos = null;
+        if (connectionMap.get(s) == null) {
+            try {
+                dos = new DataOutputStream(s.getOutputStream());
+                connectionMap.put(s, dos);
+            } catch (IOException ex) {
+                Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        } else {
+            dos = connectionMap.get(s);
+        }
+        try {
+            dos.write(serialize(o));
+            dos.flush();
         } catch (Exception ex) {
             Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 
     public static void dispatchObjectToClients(Object o) {
-        for (Socket connection : connections) {
-            try {
-                ObjectOutputStream oos = new ObjectOutputStream(connection.getOutputStream());
-//                oos.reset();
-                oos.writeObject(o);
-                oos.flush();
-            } catch (IOException ex) {
-                Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
-            }
+        for (Socket s : connections) {
+            dispatchObjectToClient(o, s);
         }
     }
 
@@ -107,6 +137,7 @@ public class CobraNetwork {
                 try {
                     client = socketFromServer.accept();
                     connections.add(client);
+                    dispatchObjectToClient(new Integer(connections.size() + 1), client);
                     startClientHandler(client);
                 } catch (IOException ex) {
                     Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
@@ -117,7 +148,7 @@ public class CobraNetwork {
 
     private static void startClientHandler(Socket s) {
         try {
-            ObjectInputStream ois = new ObjectInputStream(s.getInputStream());
+            DataInputStream dis = new DataInputStream(s.getInputStream());
             for (ActionListener al : actionListeners) {
                 al.actionPerformed(new ActionEvent("c", 0, null));
             }
@@ -125,15 +156,20 @@ public class CobraNetwork {
                 System.out.println("Client handler initialized for " + s.getInetAddress().getHostAddress() + "...");
                 while (true) {
                     try {
-//                        System.out.println("Listening for incoming object from client...");
-                        Object itemToUpdate = ois.readObject();
-                        for (ActionListener al : actionListeners) {
-                            al.actionPerformed(new ActionEvent(itemToUpdate, 0, "client"));
+                        int dataLength = dis.available();
+                        if (dataLength > 0) {
+                            System.out.println("Listening for incoming object from client...");
+                            byte[] bytes = new byte[dataLength];
+                            dis.readFully(bytes);
+                            for (ActionListener al : actionListeners) {
+                                al.actionPerformed(new ActionEvent(deserialize(bytes), 0, "client"));
+                            }
                         }
                     } catch (IOException ex) {
+                        Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
+//                    } catch (ClassNotFoundException ex) {
 //                        Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
-                        continue;
-                    } catch (ClassNotFoundException ex) {
+                    } catch (Exception ex) {
                         Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
                     }
                 }
@@ -144,38 +180,69 @@ public class CobraNetwork {
     }
 
     private static boolean connect() {
+        DataInputStream dis;
         try {
-            Socket s = new Socket(ip, port);
+            Socket socketToServer = new Socket(ip, port);
             isServer = false;
-            connections.add(s);
+            connections.add(socketToServer);
+            dis = new DataInputStream(socketToServer.getInputStream());
             System.out.println("This client is connected.");
-            ObjectInputStream ois = new ObjectInputStream(connections.get(0).getInputStream());
-            new Thread(() -> {
-                while (true) {
-                    try {
-//                        if (ois.available() > 0) {
-//                        System.out.println("Listening for incoming objects from server...");
-                        Object incomingMessage = ois.readObject();
-                        for (ActionListener al : actionListeners) {
-                            al.actionPerformed(new ActionEvent(incomingMessage, 0, "server"));
-                        }
-                    } catch (IOException ex) {
-//                        Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
-                        continue;
-                    } catch (ClassNotFoundException ex) {
-                        Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
-                    }
-//                        }
-                }
-            }).start();
-            return true;
+            connectionMap.put(socketToServer, null);
+            isConnected = true;
         } catch (IOException ex) {
 //            Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
             return false;
         }
+        new Thread(() -> {
+            while (true) {
+                try {
+                    int dataLength = dis.available();
+                    if (dataLength > 0) {
+                        byte[] bytes = new byte[dataLength];
+                        dis.readFully(bytes);
+                        for (ActionListener al : actionListeners) {
+                            al.actionPerformed(new ActionEvent(deserialize(bytes), 0, "server"));
+                        }
+                    }
+                } catch (IOException ex) {
+                    Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
+                    continue;
+                } catch (ClassNotFoundException ex) {
+                    Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
+                } catch (Exception ex) {
+                    Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+        }).start();
+        return true;
     }
 
     public static boolean isServer() {
         return isServer;
+    }
+
+    private static byte[] serialize(Object o) throws Exception {
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                ObjectOutput out = new ObjectOutputStream(bos)) {
+            out.writeObject(o);
+            return bos.toByteArray();
+        }
+    }
+
+    private static Object deserialize(byte[] b) throws Exception {
+        try (ByteArrayInputStream bis = new ByteArrayInputStream(b);
+                ObjectInput in = new ObjectInputStream(bis)) {
+            return in.readObject();
+        }
+    }
+
+    public static void close() {
+        for (Socket connection : connections) {
+            try {
+                connection.close();
+            } catch (IOException ex) {
+                Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
     }
 }
