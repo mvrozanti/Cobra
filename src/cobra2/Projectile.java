@@ -11,27 +11,32 @@ import java.awt.Point;
  *
  * @author Nexor
  */
-public class Projectile extends Harm {
+public class Projectile {
 
     public static int DEFAULT_PROJECTILE_STEP = 3;
     public Direction dir;
     public int step;
+    public Point pos;
 
     public Projectile(Cobra myCobra) {
-        super(new Point(myCobra.getDirection() == LEFT
+        pos = new Point(myCobra.getDirection() == LEFT
                 ? myCobra.head.x - DEFAULT_PROJECTILE_STEP * 2
                 : myCobra.getDirection() == RIGHT
                         ? myCobra.head.x + DEFAULT_PROJECTILE_STEP * 2 : myCobra.head.x,
                 myCobra.getDirection() == UP
                         ? myCobra.head.y - DEFAULT_PROJECTILE_STEP * 2
                         : myCobra.getDirection() == DOWN
-                                ? myCobra.head.y + DEFAULT_PROJECTILE_STEP * 2 : myCobra.head.y));
+                                ? myCobra.head.y + DEFAULT_PROJECTILE_STEP * 2 : myCobra.head.y);
         this.dir = myCobra.getDirection();
         step = DEFAULT_PROJECTILE_STEP;
     }
 
     public Direction getDirection() {
         return dir;
+    }
+
+    public void setDirection(Direction dir) {
+        this.dir = dir;
     }
 
     public int getStep() {

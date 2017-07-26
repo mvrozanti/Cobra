@@ -3,6 +3,7 @@ package cobra2;
 import com.sun.javafx.scene.traversal.Direction;
 import static com.sun.javafx.scene.traversal.Direction.DOWN;
 import static com.sun.javafx.scene.traversal.Direction.LEFT;
+import static com.sun.javafx.scene.traversal.Direction.RIGHT;
 import static com.sun.javafx.scene.traversal.Direction.UP;
 import java.awt.Color;
 import java.awt.Point;
@@ -13,13 +14,13 @@ import java.util.Random;
 /**
  * harm
  * invisiblity
- * projectile (maybe bigify)
- * 
+ * projectile (maybe bigify/paralyzer)
  * blink/teleport
  * 
+ * blindness
  * bigify
  * mana machanics
- * invincible // hueDisplay?
+ * invincible // hueDisplay mariolike?
  * LSD-mode
  * @author Nexor
  */
@@ -35,9 +36,14 @@ public class Cobra implements Serializable {
     public Color color;
     public boolean alive, isInvisible;
     public int ticksTurned;
+    public int portalCount;
 
     public Cobra(int x, int y) {
         this(new Point(x, y));
+    }
+    
+    public static Direction reverse(Direction d){
+        return d == RIGHT ? LEFT : d == LEFT ? RIGHT : d == UP ? DOWN : UP;
     }
 
     public Cobra(Point head) {
@@ -56,6 +62,7 @@ public class Cobra implements Serializable {
         color = new Color(r.nextInt(128) + 128, r.nextInt(128) + 128, r.nextInt(128) + 128);
         harmCount = System.getProperty("user.name").equalsIgnoreCase("NEXOR") ? Integer.MAX_VALUE : DEFAULT_HARM_COUNT;//this is cheating neegga
         projectileCount = System.getProperty("user.name").equalsIgnoreCase("NEXOR") ? Integer.MAX_VALUE : DEFAULT_HARM_COUNT;
+        portalCount = System.getProperty("user.name").equalsIgnoreCase("NEXOR") ? Integer.MAX_VALUE : DEFAULT_HARM_COUNT;
         
     }
 

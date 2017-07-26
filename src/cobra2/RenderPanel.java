@@ -5,6 +5,8 @@
  */
 package cobra2;
 
+import static com.sun.javafx.scene.traversal.Direction.LEFT;
+import static com.sun.javafx.scene.traversal.Direction.RIGHT;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -37,6 +39,7 @@ public class RenderPanel extends JPanel {
                     + " Score: " + cb.myCobra.score
                     + ", Tail Length: " + cb.myCobra.tailLength
                     + ", Ticks: " + cb.ticks
+                    + ", Direction: " + cb.myCobra.getDirection()
                     + ", Head Pos: (" + cb.myCobra.head.x + "," + cb.myCobra.head.y + ")";
         } else {
             hud = "Score: " + cb.myCobra.score + ", Tail Length: " + cb.myCobra.tailLength + ", Ticks: " + cb.ticks;
@@ -44,7 +47,7 @@ public class RenderPanel extends JPanel {
         g.drawString(hud, 15, 15);
 
         if (cb.cherry != null) {
-            g.fillRect(cb.cherry.x * CobraBoard.SCALE, cb.cherry.y * CobraBoard.SCALE, CobraBoard.SCALE, CobraBoard.SCALE);
+            drawSquareAt(g, cb.cherry);
         }
 
         g.setColor(cb.myCobra.color);
@@ -57,21 +60,21 @@ public class RenderPanel extends JPanel {
             g.drawString("PAUSED", cb.x / 3, cb.y / 3);
             g.setFont(g.getFont().deriveFont(0, originalFontSize));
         }
-
+        for (Portal p : cb.portals) {
+            g.setColor(((Portal) p).c);
+            drawProjectile(g, p);
+        }
+        for (Projectile p : cb.projectiles) {
+            g.setColor(Color.RED);
+            drawProjectile(g, p);
+        }
         for (Harm h : cb.harms) {
-            if (h instanceof Projectile) {
-                g.setColor(Color.RED);
-                g.fillRect(h.pos.x * CobraBoard.SCALE, h.pos.y * CobraBoard.SCALE, CobraBoard.SCALE, CobraBoard.SCALE);
-                g.setColor(BG_COLOR);
-                g.fillRect(h.pos.x * CobraBoard.SCALE, h.pos.y * CobraBoard.SCALE, (int) (CobraBoard.SCALE*0.8), (int) (CobraBoard.SCALE*.8));
-            } else {
-                g.setColor(Color.getHSBColor((float) Math.random(), 1, 1));//WHAT COLOR???
-                g.fillRect(h.pos.x * CobraBoard.SCALE, h.pos.y * CobraBoard.SCALE, CobraBoard.SCALE, CobraBoard.SCALE);
-            }
+            g.setColor(Color.getHSBColor((float) Math.random(), 1, 1));//WHAT COLOR???
+            drawSquareAt(g, h.pos);
         }
 
         for (Cobra c : cb.cobras) {
-            if (c.isInvisible() && !c.equals(cb.myCobra)) {
+            if (c.isInvisible() && !c.equals(cb.myCobra) || !c.alive) {
                 g.setColor(BG_COLOR);
             } else if (c.isInvisible() && c.equals(cb.myCobra)) {
                 g.setColor(
@@ -84,9 +87,10 @@ public class RenderPanel extends JPanel {
                 g.setColor(c.color);
             }
             for (Point p : c.snakeParts) {
-                g.fillRect(p.x * CobraBoard.SCALE, p.y * CobraBoard.SCALE, CobraBoard.SCALE, CobraBoard.SCALE);
+                drawSquareAt(g, p);
             }
-            g.fillRect(c.head.x * CobraBoard.SCALE, c.head.y * CobraBoard.SCALE, CobraBoard.SCALE, CobraBoard.SCALE);
+            drawSquareAt(g, c.head);
+
         }
         if (!cb.myCobra.alive) {
             int r = (int) (256 * Math.random());
@@ -99,7 +103,17 @@ public class RenderPanel extends JPanel {
         repaint();
     }
 
-    private void paintSquareAt(Graphics g, int x, int y) {// necessary?
+    private void drawSquareAt(Graphics g, Point p) {
+        g.fillRect(p.x * CobraBoard.SCALE, p.y * CobraBoard.SCALE, CobraBoard.SCALE, CobraBoard.SCALE);
+    }
 
+    private void drawProjectile(Graphics g, Projectile p) {
+        if (p.dir == RIGHT || p.dir == LEFT) {
+            g.fillRect(p.pos.x * CobraBoard.SCALE, p.pos.y * CobraBoard.SCALE + CobraBoard.SCALE, CobraBoard.SCALE, 1);
+            g.fillRect(p.pos.x * CobraBoard.SCALE, p.pos.y * CobraBoard.SCALE, CobraBoard.SCALE, 1);
+        } else {
+            g.fillRect(p.pos.x * CobraBoard.SCALE + CobraBoard.SCALE, p.pos.y * CobraBoard.SCALE, 1, CobraBoard.SCALE);
+            g.fillRect(p.pos.x * CobraBoard.SCALE, p.pos.y * CobraBoard.SCALE, 1, CobraBoard.SCALE);
+        }
     }
 }
