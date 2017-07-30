@@ -27,8 +27,8 @@ import java.util.logging.Logger;
 public class CobraNetwork {
 
     private static ServerSocket socketFromServer;
-    private static String ip = "127.0.0.1";
-    private static int port = 448;
+    private static final String IP = "189.33.100.117";
+    private static final int PORT = 448;
     private static List<Socket> connections = new ArrayList<>();
     private static HashMap<Socket, DataOutputStream> connectionMap = new HashMap<>();
     private static boolean isServer;
@@ -44,7 +44,7 @@ public class CobraNetwork {
     private static void initializeServer() {
         try {
             System.out.println("Server initialized...");
-            socketFromServer = new ServerSocket(port, 8, InetAddress.getByName(ip));
+            socketFromServer = new ServerSocket(PORT, 8, InetAddress.getByName("0.0.0.0"));
             startAcceptingNewConnections();
             isConnected = true;
             isServer = true;
@@ -86,7 +86,7 @@ public class CobraNetwork {
         }
     }
 
-    public static void sendObjectToServer(Object o) {
+    private static void sendObjectToServer(Object o) {
         try {
             DataOutputStream dos;
             if (connectionMap.get(connections.get(0)) == null) {
@@ -100,6 +100,14 @@ public class CobraNetwork {
             dos.flush();
         } catch (Exception ex) {
             Logger.getLogger(CobraNetwork.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    public static void send(Object o) {
+        if (isServer) {
+            dispatchObjectToClients(o);
+        } else {
+            sendObjectToServer(o);
         }
     }
 
@@ -123,7 +131,7 @@ public class CobraNetwork {
         }
     }
 
-    public static void dispatchObjectToClients(Object o) {
+    private static void dispatchObjectToClients(Object o) {
         for (Socket s : connections) {
             dispatchObjectToClient(o, s);
         }
@@ -182,7 +190,7 @@ public class CobraNetwork {
     private static boolean connect() {
         DataInputStream dis;
         try {
-            Socket socketToServer = new Socket(ip, port);
+            Socket socketToServer = new Socket(IP, PORT);
             isServer = false;
             connections.add(socketToServer);
             dis = new DataInputStream(socketToServer.getInputStream());

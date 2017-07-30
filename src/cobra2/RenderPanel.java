@@ -86,10 +86,12 @@ public class RenderPanel extends JPanel {
             } else {
                 g.setColor(c.color);
             }
-            for (Point p : c.snakeParts) {
-                drawSquareAt(g, p);
+            if (c.alive) {
+                for (Point p : c.snakeParts) {
+                    drawSquareAt(g, p);
+                }
+                drawSquareAt(g, c.head);
             }
-            drawSquareAt(g, c.head);
 
         }
         if (!cb.myCobra.alive) {

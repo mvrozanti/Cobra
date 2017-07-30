@@ -1,12 +1,14 @@
 package cobra2;
 
 import java.awt.Point;
+import java.io.Serializable;
 
 /**
  *
  * @author Nexor
  */
-public class Harm {
+public class Harm implements Serializable {
+
     public Point pos;
     public int state;
 
@@ -17,8 +19,7 @@ public class Harm {
 
     @Override
     public boolean equals(Object obj) {
-        return ((Harm)obj).pos.equals(pos);
+        return ((Harm) obj).pos.equals(pos);
     }
-    
-    
+
 }

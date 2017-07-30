@@ -1,12 +1,13 @@
 package cobra2;
 
 import java.awt.Color;
+import java.io.Serializable;
 
 /**
  *
  * @author Nexor
  */
-public class Portal extends Projectile {
+public class Portal extends Projectile implements Serializable {
 
     private static int DEFAULT_PORTAL_STEP = 10;
     private static int COUNT = 0;

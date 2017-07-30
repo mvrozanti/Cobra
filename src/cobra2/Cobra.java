@@ -24,13 +24,15 @@ import java.util.Random;
  * LSD-mode
  * @author Nexor
  */
-public class Cobra implements Serializable {
+public final class Cobra implements Serializable {
 
     public static int DEFAULT_TAIL_LENGTH = 7;
+    public static int DEFAULT_STEP = 1;
     public static int DEFAULT_HARM_COUNT = 3;
     public static Color USER_COLOR;
-    public ArrayList<Point> snakeParts = new ArrayList<>();
+    public ArrayList<Point> snakeParts;
     public int ticksInvisible, tailLength, score, step, harmCount, projectileCount, id;
+    private final Point startHead;
     private Direction dir;
     public Point head;
     public Color color;
@@ -47,7 +49,22 @@ public class Cobra implements Serializable {
     }
 
     public Cobra(Point head) {
-        this.head = head;
+        this.startHead = head;
+        reset();
+    }
+
+    public void setVisible(boolean visibility, int ticks) {
+        isInvisible = !visibility;
+        ticksInvisible = ticks;
+    }
+    
+    public int getTicksInvisible(){
+        return ticksInvisible;
+    }
+
+    public void reset() {
+        this.head = (Point) startHead.clone();
+        snakeParts = new ArrayList<>();
         tailLength = DEFAULT_TAIL_LENGTH;
         alive = true;
         isInvisible = false;
@@ -63,18 +80,8 @@ public class Cobra implements Serializable {
         harmCount = System.getProperty("user.name").equalsIgnoreCase("NEXOR") ? Integer.MAX_VALUE : DEFAULT_HARM_COUNT;//this is cheating neegga
         projectileCount = System.getProperty("user.name").equalsIgnoreCase("NEXOR") ? Integer.MAX_VALUE : DEFAULT_HARM_COUNT;
         portalCount = System.getProperty("user.name").equalsIgnoreCase("NEXOR") ? Integer.MAX_VALUE : DEFAULT_HARM_COUNT;
-        
-    }
-
-    public void setVisible(boolean visibility, int ticks) {
-        isInvisible = !visibility;
-        ticksInvisible = ticks;
     }
     
-    public int getTicksInvisible(){
-        return ticksInvisible;
-    }
-
     public Harm deployHarm() {
         harmCount--;
         return new Harm(snakeParts.get(0));

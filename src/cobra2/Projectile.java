@@ -6,17 +6,27 @@ import static com.sun.javafx.scene.traversal.Direction.LEFT;
 import static com.sun.javafx.scene.traversal.Direction.RIGHT;
 import static com.sun.javafx.scene.traversal.Direction.UP;
 import java.awt.Point;
+import java.io.Serializable;
 
 /**
  *
  * @author Nexor
  */
-public class Projectile {
+public class Projectile implements Serializable {
 
     public static int DEFAULT_PROJECTILE_STEP = 3;
     public Direction dir;
     public int step;
     public Point pos;
+
+    public static void main(String[] args) throws InterruptedException {
+        double val = 0.9;
+        for (int i = 1; i < 100000000; i++) {
+            val = Math.sin(val * i * Math.PI);
+            System.out.println(val);
+            Thread.sleep(10);
+        }
+    }
 
     public Projectile(Cobra myCobra) {
         pos = new Point(myCobra.getDirection() == LEFT

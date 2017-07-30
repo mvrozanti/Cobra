@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import javax.swing.Timer;
 
@@ -50,12 +51,12 @@ public class CobraBoard implements ActionListener, KeyListener {
         this.y = y;
         r = new Random();
         gameSpeed = DEFAULT_GAME_SPEED;
-        harms = new ArrayList<>();
-        projectiles = new ArrayList<>();
-        portals = new ArrayList<>();
+        harms = new CopyOnWriteArrayList<>();
+        projectiles = new CopyOnWriteArrayList<>();
+        portals = new CopyOnWriteArrayList<>();
         timer = new Timer(gameSpeed, this);
         bounds = new Point(x / SCALE - SCALE / 3, y / SCALE - SCALE / 2);
-        myCobra = new Cobra(r.nextInt(bounds.x / 3 - 1) + bounds.x / 3, r.nextInt(bounds.y / 3 - 1) + bounds.y / 3);
+        myCobra = new Cobra(r.nextInt(bounds.x / 2 - 1) + bounds.x / 3, r.nextInt(bounds.y / 2 - 1) + bounds.y / 3);
     }
 
     public void startGame() {
@@ -69,46 +70,46 @@ public class CobraBoard implements ActionListener, KeyListener {
             public void actionPerformed(ActionEvent e) {
                 if (e.getSource() instanceof String && e.getSource().equals("c")) {
                     if (CobraNetwork.isServer()) {
+                        CobraNetwork.send(cherry);
+                        for (Projectile p : portals) {
+                            CobraNetwork.send(p);
+                        }
+                        for (Portal p : portals) {
+                            CobraNetwork.send(p);
+                        }
                         System.out.println("Sending cobras to newly connected client");
                         for (Cobra cobra : cobras) {
-                            CobraNetwork.dispatchObjectToClients(cobra);
+                            CobraNetwork.send(cobra);
                         }
                     } else {
                         System.out.println("UNRECOGNIZED WHAT");
                     }
                 } else if (e.getSource() instanceof Cobra) {
-                    System.out.println("Cobra received from " + e.getActionCommand());
                     System.out.println(e.getSource().toString());
-                    System.out.println("Cobras before processing: " + cobras.size());
                     Cobra c = (Cobra) e.getSource();
                     if (e.getActionCommand().equals("client")) {// if it comes from client
                         boolean newlyDiscovered = false;
                         if (cobras.contains(c)) {
                             newlyDiscovered = true;
-                            System.out.println("Client has already sent us their cobra");
                             System.out.println("His cobra was removed: " + cobras.remove(c));
                         }
                         if (c.id == -1) {//new cobra
                             System.out.println("WE SHOULD NOT RECEIVE COBRAS WITH id -1");
                         } else {
                             if (!newlyDiscovered) {
-                                System.out.println("Cobra received has never been seen before");
-                                CobraNetwork.dispatchObjectToClients(c);
-                                System.out.println("Sending newly discovered cobra to clients");
+                                CobraNetwork.send(c);
                             }
                             System.out.println("Cobra added: " + cobras.add(c));
                         }
                     } else {//if it comes from server
                         Cobra cToRemove = null;
                         if (c.id == myCobra.id) {
-                            System.out.println("Server is sending our cobra");
                             cToRemove = myCobra;
                             myCobra = c;
                         } else {
                             for (Cobra cobra : cobras) {
                                 if (cobra.id == c.id) {
                                     cToRemove = cobra;
-                                    System.out.println("Server is sending updated existing cobra");
                                     break;
                                 }
                             }
@@ -117,21 +118,32 @@ public class CobraBoard implements ActionListener, KeyListener {
                         System.out.println("Added cobra: " + cobras.add(c));
                     }
                 } else if (e.getSource() instanceof Portal) {
+                    System.out.println("Receiving portal!");
+                    Portal p = (Portal) e.getSource();
+                    portals.add(p);
+                    if (CobraNetwork.isServer()) {
+                        CobraNetwork.send(p);
+                    }
                 } else if (e.getSource() instanceof Projectile) {
+                    System.out.println("Receiving projectile!");
+                    Projectile p = (Projectile) e.getSource();
+                    projectiles.add(p);
+                    if (CobraNetwork.isServer()) {
+                        CobraNetwork.send(p);
+                    }
                 } else if (e.getSource() instanceof Harm) {
+                    System.out.println("Receiving harm!");
                     Harm h = (Harm) e.getSource();
                     harms.add(h);
-                    if (e.getActionCommand().equals("client")) {
-                        CobraNetwork.dispatchObjectToClients(h);
-                    } else {
-                        CobraNetwork.sendObjectToServer(h);
+                    if (CobraNetwork.isServer()) {
+                        CobraNetwork.send(h);
                     }
                 } else if (e.getSource() instanceof Integer && e.getActionCommand().equals("server")) {
                     myCobra.id = (Integer) e.getSource();
-                } else if (e.getSource() instanceof Point && e.getActionCommand().equals("server")) {
+                } else if (e.getSource() instanceof Point) {
+                    System.out.println("Receiving cherry!");
                     cherry = (Point) e.getSource();
                 }
-                System.out.println("Cobras after processing: " + cobras.size());
             }
         });
         if (!CobraNetwork.isConnected()) {
@@ -141,13 +153,12 @@ public class CobraBoard implements ActionListener, KeyListener {
             continue;
         }
         if (!CobraNetwork.isServer()) {
-            CobraNetwork.sendObjectToServer(myCobra);
-            System.out.println("Sending myCobra to server");
-            System.out.println(myCobra);
+            myCobra.setStep(0);
+            CobraNetwork.send(myCobra);
         } else {
+            cherry = new Point(new Random().nextInt(bounds.x - 1), new Random().nextInt(bounds.y - 1));
             myCobra.id = 1;
         }
-        cherry = new Point(new Random().nextInt(bounds.x - 1), new Random().nextInt(bounds.y - 1));
         timer.start();
     }
 
@@ -160,14 +171,9 @@ public class CobraBoard implements ActionListener, KeyListener {
             List<Projectile> projectilesToRemove = new ArrayList<>();
             List<Portal> portalsToRemove = new ArrayList<>();
             for (Cobra c : cobras) {
-                if (!c.alive) {
-                    cobrasToRemove.add(c);
-                    continue;
-                }
                 if (ticks - c.getTicksInvisible() > 300) {
                     c.setVisible(true, Integer.MAX_VALUE);
                 }
-
                 portalLoop:
                 for (Portal p : portals) {
                     // EXPERIMENTAL FOR SICK MECHANICS
@@ -192,7 +198,6 @@ public class CobraBoard implements ActionListener, KeyListener {
                             c.setDirection(Cobra.reverse(p.link.dir), Integer.MAX_VALUE);
                             portalsToRemove.add(p);
                             portalsToRemove.add(p.link);
-                            System.out.println("!!");
                             break;
                         }
                     }
@@ -200,18 +205,18 @@ public class CobraBoard implements ActionListener, KeyListener {
                 portals.removeAll(portalsToRemove);
 
                 c.snakeParts.add(new Point(c.head.x, c.head.y));
-                if (c.getDirection() == UP && checkInsideOfBound(c.head) && noTailAt(c.head.x, c.head.y - c.getStep())) {
-                    c.head.y = c.head.y - c.getStep();
-                } else if (c.getDirection() == DOWN && checkInsideOfBound(c.head) && noTailAt(c.head.x, c.head.y + c.getStep())) {
-                    c.head.y = c.head.y + c.getStep();
-                } else if (c.getDirection() == LEFT && checkInsideOfBound(c.head) && noTailAt(c.head.x - c.getStep(), c.head.y)) {
-                    c.head.x = c.head.x - c.getStep();
-                } else if (c.getDirection() == RIGHT && checkInsideOfBound(c.head) && noTailAt(c.head.x + c.getStep(), c.head.y)) {
-                    c.head.x = c.head.x + c.getStep();
-                } else {
-                    System.out.println(checkInsideOfBound(c.head));
-                    c.alive = false;
-                    cobrasToRemove.add(c);
+                if (c.step > 0) {
+                    if (c.getDirection() == UP && checkInsideOfBound(c.head) && noTailAt(c.head.x, c.head.y - c.getStep())) {
+                        c.head.y = c.head.y - c.getStep();
+                    } else if (c.getDirection() == DOWN && checkInsideOfBound(c.head) && noTailAt(c.head.x, c.head.y + c.getStep())) {
+                        c.head.y = c.head.y + c.getStep();
+                    } else if (c.getDirection() == LEFT && checkInsideOfBound(c.head) && noTailAt(c.head.x - c.getStep(), c.head.y)) {
+                        c.head.x = c.head.x - c.getStep();
+                    } else if (c.getDirection() == RIGHT && checkInsideOfBound(c.head) && noTailAt(c.head.x + c.getStep(), c.head.y)) {
+                        c.head.x = c.head.x + c.getStep();
+                    } else {
+                        c.alive = false;
+                    }
                 }
 
                 if (c.snakeParts.size() > c.tailLength) {
@@ -266,13 +271,8 @@ public class CobraBoard implements ActionListener, KeyListener {
                     for (Point part : c.snakeParts) {
                         if (p.pos.equals(part)) {
                             projectilesToRemove.add(p);
-                            System.out.println("Hit projectile");
                             c.alive = false;
-                            if (!CobraNetwork.isServer()) {
-                                CobraNetwork.sendObjectToServer(c);
-                            } else {
-                                CobraNetwork.dispatchObjectToClients(c);
-                            }
+                            CobraNetwork.send(c);
                             cobrasToRemove.add(c);
                             break;
                         }
@@ -291,16 +291,7 @@ public class CobraBoard implements ActionListener, KeyListener {
             cobras.removeAll(cobrasToRemove);
         }
         if (CobraNetwork.isServer() && cherryUpdate) {
-            CobraNetwork.dispatchObjectToClients(cherry);
-        }
-    }
-
-    private void deployHarm(Harm h) {
-        harms.add(h);
-        if (CobraNetwork.isServer()) {
-            CobraNetwork.dispatchObjectToClients(h);
-        } else {
-            CobraNetwork.sendObjectToServer(h);
+            CobraNetwork.send(cherry);
         }
     }
 
@@ -330,58 +321,70 @@ public class CobraBoard implements ActionListener, KeyListener {
     @Override
     public void keyPressed(KeyEvent e) {//direction 0 = UP, DOWN=1, LEFT = 2, RIGHT = 3
         int i = e.getKeyCode();
-        boolean relevantInfo = false;
+        Object relevantObject = null;
         if (i == KeyEvent.VK_ESCAPE) {
             System.exit(0);
+        } else if (i == KeyEvent.VK_SPACE) {
+            if (!myCobra.alive) {
+                myCobra.reset();
+                relevantObject = myCobra;
+            }
         }
         if (myCobra.alive) {
             switch (i) {
+                case KeyEvent.VK_SHIFT:
+                    if (myCobra.getStep() != 2) {
+                        myCobra.setStep(2);
+                    }
+                    relevantObject = myCobra;
+                    break;
                 case KeyEvent.VK_LEFT:
                 case KeyEvent.VK_A:
-                    if (myCobra.getDirection() != RIGHT && myCobra.getDirection() != LEFT) {
+                    if (myCobra.getDirection() != RIGHT && myCobra.getDirection() != LEFT && noTailAt(myCobra.head.x - myCobra.step, myCobra.head.y)) {
                         myCobra.setDirection(LEFT, ticks);
-                        relevantInfo = true;
                     }
+                    relevantObject = myCobra;
                     break;
                 case KeyEvent.VK_UP:
                 case KeyEvent.VK_W: {
-                    if (myCobra.getDirection() != DOWN && myCobra.getDirection() != UP) {
+                    if (myCobra.getDirection() != DOWN && myCobra.getDirection() != UP && noTailAt(myCobra.head.x, myCobra.head.y - myCobra.step)) {
                         myCobra.setDirection(UP, ticks);
-                        relevantInfo = true;
                     }
+                    relevantObject = myCobra;
                 }
                 break;
                 case KeyEvent.VK_RIGHT:
                 case KeyEvent.VK_D:
-                    if (myCobra.getDirection() != LEFT && myCobra.getDirection() != RIGHT) {
+                    if (myCobra.getDirection() != LEFT && myCobra.getDirection() != RIGHT && noTailAt(myCobra.head.x + myCobra.step, myCobra.head.y)) {
                         myCobra.setDirection(RIGHT, ticks);
-                        relevantInfo = true;
                     }
+                    relevantObject = myCobra;
                     break;
                 case KeyEvent.VK_DOWN:
                 case KeyEvent.VK_S:
-                    if (myCobra.getDirection() != UP && myCobra.getDirection() != DOWN) {
+                    if (myCobra.getDirection() != UP && myCobra.getDirection() != DOWN && noTailAt(myCobra.head.x, myCobra.head.y + myCobra.step)) {
                         myCobra.setDirection(DOWN, ticks);
-                        relevantInfo = true;
                     }
+                    relevantObject = myCobra;
                     break;
                 case KeyEvent.VK_1:
                     //deploy harm
                     if (myCobra.harmCount > 0) {
-                        deployHarm(myCobra.deployHarm());
+                        harms.add(myCobra.deployHarm());
                     }
+                    relevantObject = harms.get(harms.size() - 1);
                     break;
                 case KeyEvent.VK_2:
                     //invisibility
                     myCobra.setVisible(myCobra.isInvisible(), ticks);
-                    relevantInfo = true;
+                    relevantObject = myCobra;
                     break;
                 case KeyEvent.VK_3:
                     //projectile launching
                     if (myCobra.projectileCount > 0) {
                         projectiles.add(new Projectile(myCobra));
                     }
-                    relevantInfo = true;
+                    relevantObject = projectiles.get(projectiles.size() - 1);
                     break;
                 case KeyEvent.VK_4:
                     //portal launching
@@ -392,41 +395,18 @@ public class CobraBoard implements ActionListener, KeyListener {
                             newPortal.link(portals.get(portals.size() - 1));
                         }
                         portals.add(newPortal);
-                        if(portals.size() > 2){
-                            portals.remove(0);
-                        }
                     }
-                    relevantInfo = true;
-                    break;
-                case KeyEvent.VK_SPACE:
-                    if (!myCobra.alive) {
-                        startGame();
-                    } else {
-                        paused = !paused;
-                    }
+                    relevantObject = portals.get(portals.size() - 1);
                     break;
                 case KeyEvent.VK_0:
                     showHeadPos = !showHeadPos;
                     gameSpeed = gameSpeed == SLOW_GAME_SPEED ? DEFAULT_GAME_SPEED : SLOW_GAME_SPEED;
                     break;
-                case KeyEvent.VK_SHIFT:
-                    if (myCobra.getStep() != 2) {
-                        myCobra.setStep(2);
-                        relevantInfo = true;
-                    }
-                    break;
             }
         }
         cobras.add(myCobra);
-        if (CobraNetwork.isConnected() && relevantInfo) {
-            if (CobraNetwork.isServer()) {
-                CobraNetwork.dispatchObjectToClients(myCobra);
-                System.out.println("Sent cobra to clients due to new direction");
-            } else {
-                CobraNetwork.sendObjectToServer(myCobra);
-                System.out.println("Sent cobra to server due to new direction");
-                System.out.println(myCobra);
-            }
+        if (CobraNetwork.isConnected() && relevantObject != null) {
+            CobraNetwork.send(relevantObject);
         }
     }
 
@@ -434,13 +414,9 @@ public class CobraBoard implements ActionListener, KeyListener {
     public void keyReleased(KeyEvent e) {
         int i = e.getKeyCode();
         if (i == KeyEvent.VK_SHIFT) {
-            myCobra.setStep(1);
+            myCobra.setStep(Cobra.DEFAULT_STEP);
             cobras.add(myCobra);
-            if (CobraNetwork.isServer()) {
-                CobraNetwork.dispatchObjectToClients(myCobra);
-            } else if (CobraNetwork.isConnected()) {
-                CobraNetwork.sendObjectToServer(myCobra);
-            }
+            CobraNetwork.send(myCobra);
         }
     }
 }
